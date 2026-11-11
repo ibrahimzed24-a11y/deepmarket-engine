@@ -1,42 +1,56 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, MapPin, Loader2, Radio, Globe, MessageSquare, Rocket } from 'lucide-react';
+import { Search, MapPin, Loader2, Radio, Globe, MessageSquare, Zap, Target, Layers, FileText, Send, Sparkles } from 'lucide-react';
+import { MARKETING_SKILLS, MarketingSkillMeta } from '@/lib/skills-registry';
 
 interface ChatInterfaceProps {
-  onSearch: (query: string, location: string) => Promise<void>;
+  onSearch: (query: string, location: string, skillId?: string) => Promise<void>;
   isLoading: boolean;
   compact?: boolean;
+  activeSkillId?: string;
+  onSkillChange?: (skillId: string) => void;
 }
 
-const TRENDING_SEARCHES = [
-  { label: 'High Ticket Affiliate', location: 'Global' },
-  { label: 'Travel eSIM Portal', location: 'Maldives & Asia' },
-  { label: 'B2B Resort Food Supply', location: 'Maldives' },
-  { label: 'AI Booking Concierge', location: 'Bali, Indonesia' },
-  { label: 'Boutique Dive Center SaaS', location: 'Southeast Asia' },
-  { label: 'Remote Tech Talent Agency', location: 'United States' },
+const PRIMARY_SKILL_PILLS = [
+  { id: 'all-in-one', slash: '/full-campaign', label: '⚡ Full Campaign Composer' },
+  { id: 'brand-context', slash: '/brand-context', label: '/brand-context' },
+  { id: 'seo-research', slash: '/seo-research', label: '/seo-research' },
+  { id: 'competitor-intel', slash: '/competitor-intel', label: '/competitor-intel' },
+  { id: 'customer-research', slash: '/customer-research', label: '/customer-research' },
+  { id: 'google-ads', slash: '/google-ads', label: '/google-ads' },
+  { id: 'meta-ads', slash: '/meta-ads', label: '/meta-ads' },
+  { id: 'tiktok-ads', slash: '/tiktok-ads', label: '/tiktok-ads' },
+  { id: 'cold-email-outreach', slash: '/cold-email-outreach', label: '/cold-email-outreach' },
+  { id: 'blog-generation', slash: '/blog-generation', label: '/blog-generation' },
 ];
 
 export default function ChatInterface({
   onSearch,
   isLoading,
   compact = false,
+  activeSkillId = 'all-in-one',
+  onSkillChange,
 }: ChatInterfaceProps) {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState(activeSkillId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isLoading) return;
-    onSearch(query.trim(), location.trim() || 'Global');
+    onSearch(query.trim(), location.trim() || 'Global', selectedSkill);
   };
 
-  const handleTrendingClick = (item: { label: string; location: string }) => {
+  const handleSkillPillClick = (skill: { id: string; slash: string; label: string }) => {
     if (isLoading) return;
-    setQuery(item.label);
-    setLocation(item.location);
-    onSearch(item.label, item.location);
+    setSelectedSkill(skill.id);
+    if (onSkillChange) onSkillChange(skill.id);
+
+    // If query is present, re-run with this skill
+    if (query.trim()) {
+      onSearch(query.trim(), location.trim() || 'Global', skill.id);
+    }
   };
 
   return (
@@ -45,24 +59,24 @@ export default function ChatInterface({
         compact ? 'pt-4 pb-6' : 'pt-10 sm:pt-16 pb-12'
       }`}
     >
-      {/* Top Status Pill */}
+      {/* Top Status Badge */}
       <div className="flex justify-center mb-6">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#EFF6FF] border border-[#DBEAFE] text-[#1862F6] text-xs font-semibold shadow-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#1862F6] animate-pulse" />
-          <span>Live Web Autocomplete, SERP &amp; Reddit Indexing Active</span>
+          <span className="w-2 h-2 rounded-full bg-[#1862F6] animate-pulse" />
+          <span>24 HyperFX Marketing Skills + 5 Live Web Sources Active</span>
         </div>
       </div>
 
-      {/* Two-Tone Display Headline */}
+      {/* Hero Headline (When not compact) */}
       {!compact && (
         <div className="text-center mb-8 sm:mb-10">
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] text-[#0B1221] mb-4">
-            Find your next
-            <span className="block text-[#1862F6]">market opportunity.</span>
+            Run your next
+            <span className="block text-[#1862F6]">marketing skill.</span>
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 max-w-lg mx-auto leading-relaxed">
-            Search live SEO keywords, real Reddit &amp; HackerNews demand,
-            competitor gaps, and GTM playbooks across industries worldwide.
+          <p className="text-sm sm:text-base text-[#64748B] max-w-xl mx-auto leading-relaxed">
+            Execute autonomous SEO, competitor battlecards, Reddit VOC mining, paid ads,
+            and cold outreach grounded in live web data.
           </p>
         </div>
       )}
@@ -72,7 +86,7 @@ export default function ChatInterface({
         onSubmit={handleSubmit}
         className="max-w-2xl mx-auto bg-white rounded-full p-2 pl-5 border border-slate-200/90 shadow-[0_12px_36px_-8px_rgba(15,23,42,0.08)] flex flex-col sm:flex-row items-stretch sm:items-center gap-2 focus-within:border-[#1862F6]/60 focus-within:ring-4 focus-within:ring-[#1862F6]/10 transition"
       >
-        {/* Left Input: Niche / Industry / Keyword */}
+        {/* Left Input: Niche, Brand URL, or /skill */}
         <div className="flex items-center gap-3 flex-1 min-w-0 py-1.5 sm:py-0">
           <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input
@@ -80,13 +94,13 @@ export default function ChatInterface({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={isLoading}
-            placeholder="Niche, business model, or product..."
+            placeholder="Enter niche, brand URL, or /skill (e.g. /google-ads for Maldives eSIM)..."
             className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none truncate"
           />
         </div>
 
         {/* Vertical Hairline Divider */}
-        <div className="hidden sm:block w-px h-6 bg-slate-200" />
+        <div className="hidden sm:block w-px h-6 bg-[#E2E8F0]" />
 
         {/* Right Input: Location */}
         <div className="flex items-center gap-2 sm:w-44 py-1.5 sm:py-0 border-t sm:border-t-0 border-slate-100">
@@ -96,12 +110,12 @@ export default function ChatInterface({
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             disabled={isLoading}
-            placeholder="Location / Region..."
+            placeholder="Location (e.g. Global, US)"
             className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none truncate"
           />
         </div>
 
-        {/* Search Submit Button */}
+        {/* Submit CTA Button */}
         <button
           type="submit"
           disabled={isLoading || !query.trim()}
@@ -110,28 +124,35 @@ export default function ChatInterface({
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Searching...</span>
+              <span>Running...</span>
             </>
           ) : (
-            'Search'
+            'Run Skill'
           )}
         </button>
       </form>
 
-      {/* Trending Pill Tags */}
-      <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
-        <span className="text-slate-400 font-medium">Trending:</span>
-        {TRENDING_SEARCHES.map((item, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => handleTrendingClick(item)}
-            disabled={isLoading}
-            className="px-3 py-1 rounded-full bg-white hover:bg-slate-50 text-slate-600 hover:text-[#1862F6] border border-slate-200 shadow-sm transition cursor-pointer"
-          >
-            {item.label} <span className="text-slate-400 font-normal">&middot; {item.location}</span>
-          </button>
-        ))}
+      {/* Interactive Skill Selector Pills (Matching Trending: row in search ref.png) */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs max-w-3xl mx-auto">
+        <span className="text-slate-400 font-medium">Skills:</span>
+        {PRIMARY_SKILL_PILLS.map((pill) => {
+          const isActive = selectedSkill === pill.id;
+          return (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => handleSkillPillClick(pill)}
+              disabled={isLoading}
+              className={`px-3 py-1 rounded-full font-medium transition cursor-pointer border shadow-sm ${
+                isActive
+                  ? 'bg-[#1862F6] text-white border-[#1862F6] shadow-blue-500/20'
+                  : 'bg-white hover:bg-slate-50 text-slate-600 hover:text-[#1862F6] border-slate-200'
+              }`}
+            >
+              {pill.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* 4-Column Separated Telemetry Strip (When not compact) */}
@@ -143,7 +164,7 @@ export default function ChatInterface({
                 <Radio className="w-4 h-4" />
               </div>
               <span className="text-xs font-bold text-slate-900">Google &amp; Bing Suggest</span>
-              <span className="text-[11px] text-slate-500 mt-0.5">Real search autocomplete</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">40+ live autocomplete signals</span>
             </div>
 
             <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 sm:border-r border-slate-100 text-center sm:text-left">
@@ -151,23 +172,23 @@ export default function ChatInterface({
                 <MessageSquare className="w-4 h-4" />
               </div>
               <span className="text-xs font-bold text-slate-900">Reddit &amp; HackerNews</span>
-              <span className="text-[11px] text-slate-500 mt-0.5">Live community discussions</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Verbatim VOC &amp; pain quotes</span>
             </div>
 
             <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 sm:border-r border-slate-100 text-center sm:text-left">
               <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-2">
                 <Globe className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-slate-900">Inspected Domains</span>
-              <span className="text-[11px] text-slate-500 mt-0.5">Live scraped headings &amp; pricing</span>
+              <span className="text-xs font-bold text-slate-900">Live Scraped Competitors</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">DOM headings &amp; price inspection</span>
             </div>
 
             <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 text-center sm:text-left">
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
-                <Rocket className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-slate-900">30-60-90 Playbooks</span>
-              <span className="text-[11px] text-slate-500 mt-0.5">Evidence-grounded strategy</span>
+              <span className="text-xs font-bold text-slate-900">25 HyperFX Skills</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Grounded execution engine</span>
             </div>
           </div>
         </div>

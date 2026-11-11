@@ -112,6 +112,97 @@ export interface GeoDemandArtifact {
   localization_barriers: string[];
 }
 
+export interface BrandContextCard {
+  brand_name: string;
+  source_url?: string;
+  positioning_statement: string;
+  target_icp: {
+    titles: string[];
+    company_profiles: string[];
+    core_triggers: string[];
+  };
+  buyer_personas: Array<{
+    role: string;
+    primary_goal: string;
+    dealbreaker_pain: string;
+  }>;
+  verbatim_voc_language: string[];
+  brand_voice_rules: string[];
+  key_proof_points: string[];
+}
+
+export interface GoogleAdGroup {
+  ad_group_name: string;
+  exact_match_keywords: string[];
+  phrase_match_keywords: string[];
+  negative_keywords: string[];
+  rsa_headlines: string[];
+  rsa_descriptions: string[];
+}
+
+export interface MetaAdAngle {
+  angle_name: string;
+  target_audience: string;
+  primary_text: string;
+  headline: string;
+  cta: string;
+}
+
+export interface TikTokHook {
+  hook_type: string;
+  script_hook_3s: string;
+  visual_cue: string;
+}
+
+export interface PaidAdsCampaignBundle {
+  target_industry: string;
+  daily_budget_recommendation: string;
+  google_search_ad_groups: GoogleAdGroup[];
+  meta_advantage_angles: MetaAdAngle[];
+  tiktok_hooks: TikTokHook[];
+}
+
+export interface ColdEmailStep {
+  step_number: number;
+  timing: string;
+  subject_line: string;
+  body: string;
+}
+
+export interface ColdEmailSequenceBundle {
+  target_titles: string[];
+  trigger_signals: string[];
+  value_hook: string;
+  sequence: ColdEmailStep[];
+  reply_playbook: Array<{
+    objection: string;
+    counter_reply: string;
+  }>;
+}
+
+export interface SEOBlogOutlineItem {
+  heading: string;
+  key_points: string[];
+}
+
+export interface SEOBlogBlueprint {
+  article_title: string;
+  target_primary_keyword: string;
+  secondary_keywords: string[];
+  meta_description: string;
+  h2_h3_outline: SEOBlogOutlineItem[];
+  information_gain_callout: string;
+  ai_overview_citation_snippet: string;
+}
+
+export interface MarketingSkillOutputs {
+  active_skill_id: string;
+  brand_context_card?: BrandContextCard;
+  paid_ads_campaigns?: PaidAdsCampaignBundle;
+  cold_email_sequence?: ColdEmailSequenceBundle;
+  seo_blog_blueprint?: SEOBlogBlueprint;
+}
+
 export interface ComprehensiveDossier {
   meta: {
     query: string;
@@ -125,6 +216,8 @@ export interface ComprehensiveDossier {
   seo: SEOKeywordArtifact;
   competitors: CompetitorGapArtifact;
   gtm: GTMStrategyArtifact;
+  active_skill?: string;
+  skill_outputs?: MarketingSkillOutputs;
 }
 
 // Backward-compatible alias

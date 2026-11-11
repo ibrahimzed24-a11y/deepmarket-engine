@@ -1,0 +1,147 @@
+# Meta Ads: Account Discovery & Research
+
+Run this phase before any campaign creation. It establishes account context, verifies health, and gathers research needed for targeting and creative decisions.
+
+---
+
+## Step 1: Account selection
+
+In Hyper chat, call `connections_info(toolkit_id="meta_ads")`. It lists the ad accounts and the Pages. Call a list tool only for a field it does not show, or on an MCP client: `meta_ads_adaccount_list(fields="id,name,account_status,currency")`.
+
+- **Multiple accounts returned**: Ask the user to select one before proceeding. Do not assume.
+- **Single account returned**: Inform the user and proceed.
+
+Capture the selected `account_id` (format: `act_XXXXXXXXX`). All subsequent tool calls require it.
+
+---
+
+## Step 2: Page discovery
+
+Call `meta_ads_owned_pages_list` with `{"account_id": "<selected_act_id>", "detail": "id_only"}`.
+
+> `account_id` is REQUIRED — never call this tool without it.
+
+**Capture the returned `page_id` explicitly.** Where it goes: section 11 of [constraints.md](constraints.md). Do not rely on auto-resolution.
+
+**If the call fails with "No business ID found for this ad account":**
+
+Call `meta_accounts_list()`. The health check fails the same way, so it gives no page id.
+
+```python
+meta_accounts_list()
+```
+
+It takes no account argument; it lists every Page the token can see. Capture `page_id` from the response and continue.
+
+**If no pages are returned at all:**
+1. Run `meta_ads_health_check`.
+2. If "Page publish access" fails: the Page must be linked to this ad account's Business Manager in Meta Business Settings. This is a user-side fix. Surface the issue and stop.
+
+---
+
+## Step 3: Pixel discovery (for Sales and Leads campaigns)
+
+If the user intends to track website conversions or leads, call `meta_ads_ad_pixels_list` with `{"account_id": "<act_id>"}`.
+
+Capture the `pixel_id`. It goes in `promoted_object` on the ad set.
+
+**If no pixels are found:** Inform the user. Pixel setup is required for conversion-based campaigns. The user must install and verify the pixel before the campaign can be created.
+
+**If multiple pixels are returned:** Do not guess. Either:
+- Ask the user: "I found [N] pixels ([list names]). Which one should I use for this campaign?"
+- Or call `meta_ads_dataset_stats_list` with each candidate pixel id as `dataset_id` and a recent `start_time` and `end_time` to check which ones are receiving the relevant events (e.g. Lead, Purchase) before selecting.
+
+---
+
+## Step 3b: Audience discovery & validation (when using custom/lookalike audiences)
+
+If the campaign targets a custom or lookalike audience, call `meta_ads_custom_audiences_list` and/or `meta_ads_lookalike_audiences_list`.
+
+> `meta_ads_lookalike_audiences_list` returns **all** audiences in the account, not just lookalikes. Filter by `subtype` / name yourself.
+
+**Validate any audience before using it.** A discovered audience is not necessarily usable. Check before building the ad set:
+
+- `operation_status.code` must be `200` (Normal). Code `433` means the audience is broken ("couldn't create, delete and retry").
+- `delivery_status.code` must be `200` (ready). Code `300` means too small to deliver.
+- Read the size with `meta_ads_custom_audience_get(custom_audience_id=...)`: `approximate_count_lower_bound` should be above ~1000.
+
+If a selected audience fails validation, **do not silently substitute a different one.** Surface it to the user:
+> "The lookalike audience you wanted is currently broken (status 433) / too small to deliver. Options: pick a different audience, create a new one, or proceed with [closest alternative]. How would you like to handle it?"
+
+The same applies to **audience parameters that don't match the brief** — e.g. the user asks for a 14-day retargeting window but only a 90-day audience exists. Surface the mismatch and let the user choose; do not quietly use the closest match.
+
+---
+
+## Step 4: Health check (recommended)
+
+Call `meta_ads_health_check` before a first campaign on any account. It takes no account argument; it checks every ad account of the connection.
+
+It verifies: token permissions, ad account access, Page publish access, and pixel access.
+
+Surface any non-PASS items to the user before continuing. Do not proceed with creation if critical items are failing.
+
+---
+
+## Step 5: Website research (mandatory for any campaign linking to a website)
+
+**Never skip this phase for website-based campaigns.**
+
+### a) Screenshot capture (required)
+
+Call `firecrawl_screenshots_create` on the primary site URL and/or the specific landing page URL.
+
+The screenshot is your visual grounding for creative direction — layout, hierarchy, tone, imagery style, hero content. Treat it as required input for image generation.
+
+### b) Branding extract
+
+Call `firecrawl_branding_extract` on the primary site URL.
+
+This captures brand colors, fonts, tone of voice, and key messaging. Use it to ensure generated ad creatives match the brand.
+
+### c) Strategic assessment
+
+After scanning, identify:
+- Primary conversion goal
+- Main buyer persona
+- Key differentiators and value proposition
+- Best CTA for this objective — choose from: `LEARN_MORE`, `SHOP_NOW`, `SIGN_UP`, `DOWNLOAD`, `BOOK_NOW`, `GET_OFFER`, `CONTACT_US`, `GET_QUOTE`
+
+Do **not** ask the user about target audiences for Advantage+ campaigns — Advantage+ uses broad targeting by default.
+
+---
+
+## Step 6: Budget confirmation
+
+Confirm before building anything:
+
+- Budget amount and currency (e.g., "$30/day USD")
+- Daily or lifetime budget
+- If lifetime: start date and end date
+
+Convert to cents immediately when confirmed. Multiply by 100 — $30/day = 3000.
+
+---
+
+## Step 7: Goal clarification (if not already known)
+
+If the campaign objective hasn't been stated, ask:
+
+```
+What is the primary goal for this campaign?
+
+1. Drive website purchases or conversions → Sales (OUTCOME_SALES)
+2. Generate leads or form submissions → Leads (OUTCOME_LEADS)
+3. Send traffic to a website or page → Traffic (OUTCOME_TRAFFIC)
+4. Build brand awareness or maximize reach → Awareness (OUTCOME_AWARENESS)
+5. Drive engagement with content or the Page → Engagement (OUTCOME_ENGAGEMENT)
+6. Promote a mobile app → App Promotion (OUTCOME_APP_PROMOTION)
+```
+
+The objective determines which campaign workflow to follow. Do not guess.
+
+Once the user approves the plan, the build reads the campaign file of the objective:
+- Sales → [references/campaigns/sales.md](references/campaigns/sales.md)
+- Leads → [references/campaigns/leads.md](references/campaigns/leads.md)
+- Traffic → [references/campaigns/traffic.md](references/campaigns/traffic.md)
+- Awareness/Engagement → [references/campaigns/awareness-engagement.md](references/campaigns/awareness-engagement.md)
+- App Promotion → [references/campaigns/app-promotion.md](references/campaigns/app-promotion.md)

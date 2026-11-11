@@ -21,6 +21,7 @@ export default function Home() {
   const [currentDossier, setCurrentDossier] = useState<ComprehensiveDossier | null>(null);
   const [history, setHistory] = useState<ComprehensiveDossier[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeSkillId, setActiveSkillId] = useState<string>('all-in-one');
 
   // Load persisted settings
   useEffect(() => {
@@ -123,11 +124,11 @@ Return only JSON.`;
     return dossier;
   };
 
-  const handleSearch = async (query: string, location: string) => {
+  const handleSearch = async (query: string, location: string, skillId?: string) => {
     setIsLoading(true);
     setErrorMessage(null);
-    const combinedPrompt = location && location !== 'Global' ? `${query} in ${location}` : query;
-    setStatusMessage(`Harvesting real web intelligence across Google, Bing, Reddit, and SERP...`);
+    const chosenSkill = skillId || activeSkillId || 'all-in-one';
+    setStatusMessage(`Executing ${chosenSkill} with live web intelligence across Google, Bing, Reddit, and SERP...`);
 
     try {
       const response = await fetch('/api/chat', {
@@ -137,7 +138,9 @@ Return only JSON.`;
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          prompt: combinedPrompt,
+          prompt: query,
+          location: location || 'Global',
+          skillId: chosenSkill,
           config: llmConfig,
         }),
       });
@@ -179,7 +182,7 @@ Return only JSON.`;
               <div className="flex items-center gap-2">
                 <span className="text-base font-extrabold text-[#0B1221] tracking-tight">DeepMarket Engine</span>
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#EFF6FF] text-[#1862F6] border border-[#DBEAFE]">
-                  v3.0 Live Web
+                  v4.0 25 HyperFX Skills
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -209,11 +212,13 @@ Return only JSON.`;
 
       {/* Main Content Area */}
       <div className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Search Hero (Split pill bar + trending tags) */}
+        {/* Search Hero (Split pill bar + skill selector pills) */}
         <ChatInterface
           onSearch={handleSearch}
           isLoading={isLoading}
           compact={Boolean(currentDossier)}
+          activeSkillId={activeSkillId}
+          onSkillChange={setActiveSkillId}
         />
 
         {/* Loading Indicator */}
@@ -222,7 +227,7 @@ Return only JSON.`;
             <div className="w-10 h-10 mx-auto rounded-full bg-[#EFF6FF] text-[#1862F6] flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900">Harvesting Live Web Evidence</h4>
+            <h4 className="text-sm font-bold text-slate-900">Running HyperFX Marketing Skill</h4>
             <p className="text-xs text-slate-500 leading-relaxed font-mono">
               {statusMessage || 'Querying Google Suggest, Bing Autosuggest, Reddit & live SERP competitors...'}
             </p>
@@ -259,30 +264,29 @@ Return only JSON.`;
           </div>
         )}
 
-        {/* Executive Intelligence Dossier Workspace */}
+        {/* Render Generated Dossier */}
         {currentDossier && !isLoading && (
-          <div className="animate-in fade-in duration-300">
+          <div className="animate-in fade-in-50 duration-300">
             <ResearchDossierView dossier={currentDossier} />
           </div>
         )}
       </div>
 
-      {/* Clean White Footer */}
-      <footer className="w-full border-t border-slate-100 bg-white py-6 text-xs text-slate-500 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>
-            &copy; {new Date().getFullYear()} <strong className="text-slate-800 font-bold">Nile Supplies</strong> (
-            <a href="mailto:contact@nilesupplies.com" className="text-[#1862F6] hover:underline">
+      {/* Footer */}
+      <footer className="w-full border-t border-slate-100 bg-white py-6 mt-16 print:hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-700">DeepMarket Engine</span>
+            <span>&middot;</span>
+            <span>25-Skill Autonomous Growth Engine</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-slate-500">
+            <span>Official Identity: <strong className="text-slate-700">Nile Supplies</strong></span>
+            <span>&middot;</span>
+            <a href="mailto:contact@nilesupplies.com" className="hover:text-[#1862F6] transition">
               contact@nilesupplies.com
             </a>
-            ). All rights reserved.
-          </p>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Live Autocomplete</span>
-            <span>&middot;</span>
-            <span>Real Reddit Discussions</span>
-            <span>&middot;</span>
-            <span>Scraped Competitors</span>
           </div>
         </div>
       </footer>
