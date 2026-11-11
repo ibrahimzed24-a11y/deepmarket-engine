@@ -1,409 +1,177 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  AgentState,
-  ComprehensiveDossier,
-  LLMConfig,
-  StreamPayload,
-} from '@/lib/types';
-import AgentWorkflowVisualizer from './AgentWorkflowVisualizer';
-import ResearchDossierView from './ResearchDossierView';
-import {
-  Send,
-  Sparkles,
-  Loader2,
-  Terminal,
-  History,
-  AlertTriangle,
-  Lightbulb,
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, MapPin, Loader2, Radio, Globe, MessageSquare, Rocket } from 'lucide-react';
 
-interface Props {
-  llmConfig: LLMConfig;
-  onOpenSettings: () => void;
+interface ChatInterfaceProps {
+  onSearch: (query: string, location: string) => Promise<void>;
+  isLoading: boolean;
+  compact?: boolean;
 }
 
-const INITIAL_AGENT_STATE: AgentState = {
-  orchestrator: { status: 'idle' },
-  geo: { status: 'idle' },
-  seo: { status: 'idle' },
-  competitor: { status: 'idle' },
-  gtm: { status: 'idle' },
-};
-
-const SUGGESTED_PROMPTS = [
-  'B2B SaaS for Island Guesthouses in Southeast Asia',
-  'Travel eSIM Marketplace for Asia Tourists',
-  'Specialty Agro-Food Export from Egypt to Maldives Resorts',
+const TRENDING_SEARCHES = [
+  { label: 'High Ticket Affiliate', location: 'Global' },
+  { label: 'Travel eSIM Portal', location: 'Maldives & Asia' },
+  { label: 'B2B Resort Food Supply', location: 'Maldives' },
+  { label: 'AI Booking Concierge', location: 'Bali, Indonesia' },
+  { label: 'Boutique Dive Center SaaS', location: 'Southeast Asia' },
+  { label: 'Remote Tech Talent Agency', location: 'United States' },
 ];
 
-interface LogEntry {
-  timestamp: string;
-  agent?: string;
-  message: string;
-  type?: 'info' | 'success' | 'warn' | 'error';
-}
+export default function ChatInterface({
+  onSearch,
+  isLoading,
+  compact = false,
+}: ChatInterfaceProps) {
+  const [query, setQuery] = useState('');
+  const [location, setLocation] = useState('');
 
-export default function ChatInterface({ llmConfig, onOpenSettings }: Props) {
-  const [inputPrompt, setInputPrompt] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [agentState, setAgentState] = useState<AgentState>(INITIAL_AGENT_STATE);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [currentDossier, setCurrentDossier] = useState<ComprehensiveDossier | null>(null);
-  const [history, setHistory] = useState<ComprehensiveDossier[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const logsEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Auto-scroll logs
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
-
-  const addLog = (message: string, agent?: string, type: 'info' | 'success' | 'warn' | 'error' = 'info') => {
-    setLogs((prev) => [
-      ...prev,
-      {
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        agent,
-        message,
-        type,
-      },
-    ]);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim() || isLoading) return;
+    onSearch(query.trim(), location.trim() || 'Global');
   };
 
-  const handleStartResearch = async (targetPrompt?: string) => {
-    const query = (targetPrompt || inputPrompt).trim();
-    if (!query || isRunning) return;
-
-    setIsRunning(true);
-    setErrorMessage(null);
-    setCurrentStep(1);
-    setAgentState({
-      orchestrator: { status: 'running', message: 'Decomposing market target...' },
-      geo: { status: 'idle' },
-      seo: { status: 'idle' },
-      competitor: { status: 'idle' },
-      gtm: { status: 'idle' },
-    });
-    setLogs([]);
-    addLog(`Initiating autonomous market intelligence pipeline for: "${query}"`, 'System', 'info');
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-        },
-        body: JSON.stringify({
-          prompt: query,
-          config: llmConfig,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Server returned error ${response.status}: ${errText}`);
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-
-      // Direct JSON Response
-      if (contentType.includes('application/json')) {
-        addLog('Zero-bias entity isolation complete.', 'Orchestrator', 'success');
-        addLog('Live autocomplete suggestions queried from Google Suggest & DuckDuckGo.', 'SEO Planner', 'success');
-        addLog('Live SERP ranking competitors scraped.', 'Gap Hunter', 'success');
-        addLog('30-60-90 Day GTM execution plan synthesized.', 'GTM Strategist', 'success');
-
-        const dossier = (await response.json()) as ComprehensiveDossier;
-        setCurrentDossier(dossier);
-        setHistory((prev) => [dossier, ...prev.filter((d) => d.meta.timestamp !== dossier.meta.timestamp)]);
-
-        setAgentState({
-          orchestrator: { status: 'completed', message: 'Entity isolation verified' },
-          geo: { status: 'completed', message: 'Qualitative readiness mapped' },
-          seo: { status: 'completed', message: 'Real queries verified' },
-          competitor: { status: 'completed', message: 'Live competitors scraped' },
-          gtm: { status: 'completed', message: 'GTM playbook synthesized' },
-        });
-
-        addLog('Executive Intelligence Dossier successfully generated.', 'System', 'success');
-        setIsRunning(false);
-        return;
-      }
-
-      // Streaming SSE fallback
-      if (response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data: ')) continue;
-            const jsonStr = trimmed.slice(6);
-            try {
-              const payload = JSON.parse(jsonStr) as StreamPayload;
-
-              if (payload.step) {
-                setCurrentStep(payload.step);
-              }
-
-              if (payload.agent && payload.status) {
-                setAgentState((prev) => ({
-                  ...prev,
-                  [payload.agent!]: {
-                    status: payload.status!,
-                    message: payload.message || prev[payload.agent!]?.message,
-                  },
-                }));
-              }
-
-              if (payload.message) {
-                addLog(payload.message, payload.agent, payload.status === 'completed' ? 'success' : 'info');
-              }
-
-              if (payload.type === 'dossier_ready' && payload.dossier) {
-                setCurrentDossier(payload.dossier);
-                setHistory((prev) => [
-                  payload.dossier!,
-                  ...prev.filter((d) => d.meta.timestamp !== payload.dossier!.meta.timestamp),
-                ]);
-                addLog('Executive Intelligence Dossier generated successfully.', 'System', 'success');
-              }
-
-              if (payload.type === 'error' && payload.error) {
-                setErrorMessage(payload.error);
-                addLog(payload.error, 'Error', 'error');
-              }
-            } catch {
-              // ignore non-json line
-            }
-          }
-        }
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(msg);
-      addLog(`Execution halted: ${msg}`, 'Error', 'error');
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleStartResearch();
-    }
+  const handleTrendingClick = (item: { label: string; location: string }) => {
+    if (isLoading) return;
+    setQuery(item.label);
+    setLocation(item.location);
+    onSearch(item.label, item.location);
   };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Top Workflow Visualizer */}
-      <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md">
-        <div className="flex items-center justify-between mb-3 px-1">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Autonomous Agent Swarm (Live-Grounded)
-            </span>
-          </div>
-          <span className="text-xs text-slate-400 font-mono">
-            {isRunning ? `Phase ${currentStep} of 4 Active` : currentDossier ? 'Execution Complete' : 'Swarm Standby'}
-          </span>
+    <section
+      className={`w-full max-w-4xl mx-auto px-4 transition-all duration-300 print:hidden ${
+        compact ? 'pt-4 pb-6' : 'pt-10 sm:pt-16 pb-12'
+      }`}
+    >
+      {/* Top Status Pill */}
+      <div className="flex justify-center mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#EFF6FF] border border-[#DBEAFE] text-[#1862F6] text-xs font-semibold shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#1862F6] animate-pulse" />
+          <span>Live Web Autocomplete, SERP &amp; Reddit Indexing Active</span>
         </div>
-
-        <AgentWorkflowVisualizer state={agentState} currentStep={currentStep} totalSteps={4} />
       </div>
 
-      {/* Real-time Execution Terminal (Visible while running or when logs exist) */}
-      {logs.length > 0 && (
-        <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 font-mono text-xs">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80 text-slate-400">
-            <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-cyan-400" />
-              <span className="text-[11px] font-semibold uppercase text-slate-300">Live Search & Agent Stream</span>
-            </div>
-            {isRunning && (
-              <span className="flex items-center gap-1.5 text-cyan-400 text-[11px]">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Live Scouting Active
-              </span>
-            )}
-          </div>
-          <div className="max-h-40 overflow-y-auto space-y-1.5 pr-2">
-            {logs.map((log, idx) => (
-              <div key={idx} className="flex items-start gap-2 leading-relaxed">
-                <span className="text-slate-500 shrink-0 text-[10px]">{log.timestamp}</span>
-                {log.agent && (
-                  <span className="text-cyan-400 font-semibold shrink-0 text-[11px]">[{log.agent}]</span>
-                )}
-                <span
-                  className={
-                    log.type === 'error'
-                      ? 'text-rose-400'
-                      : log.type === 'success'
-                      ? 'text-emerald-300'
-                      : 'text-slate-300'
-                  }
-                >
-                  {log.message}
-                </span>
+      {/* Two-Tone Display Headline */}
+      {!compact && (
+        <div className="text-center mb-8 sm:mb-10">
+          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] text-[#0B1221] mb-4">
+            Find your next
+            <span className="block text-[#1862F6]">market opportunity.</span>
+          </h1>
+          <p className="text-sm sm:text-base text-slate-500 max-w-lg mx-auto leading-relaxed">
+            Search live SEO keywords, real Reddit &amp; HackerNews demand,
+            competitor gaps, and GTM playbooks across industries worldwide.
+          </p>
+        </div>
+      )}
+
+      {/* Unified Pill Split Search Bar */}
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-2xl mx-auto bg-white rounded-full p-2 pl-5 border border-slate-200/90 shadow-[0_12px_36px_-8px_rgba(15,23,42,0.08)] flex flex-col sm:flex-row items-stretch sm:items-center gap-2 focus-within:border-[#1862F6]/60 focus-within:ring-4 focus-within:ring-[#1862F6]/10 transition"
+      >
+        {/* Left Input: Niche / Industry / Keyword */}
+        <div className="flex items-center gap-3 flex-1 min-w-0 py-1.5 sm:py-0">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={isLoading}
+            placeholder="Niche, business model, or product..."
+            className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none truncate"
+          />
+        </div>
+
+        {/* Vertical Hairline Divider */}
+        <div className="hidden sm:block w-px h-6 bg-slate-200" />
+
+        {/* Right Input: Location */}
+        <div className="flex items-center gap-2 sm:w-44 py-1.5 sm:py-0 border-t sm:border-t-0 border-slate-100">
+          <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            disabled={isLoading}
+            placeholder="Location / Region..."
+            className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none truncate"
+          />
+        </div>
+
+        {/* Search Submit Button */}
+        <button
+          type="submit"
+          disabled={isLoading || !query.trim()}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 sm:py-2.5 rounded-full bg-[#1862F6] hover:bg-[#1554D6] text-white text-xs sm:text-sm font-semibold shadow-md shadow-[#1862F6]/20 transition disabled:opacity-50 shrink-0 cursor-pointer"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Searching...</span>
+            </>
+          ) : (
+            'Search'
+          )}
+        </button>
+      </form>
+
+      {/* Trending Pill Tags */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
+        <span className="text-slate-400 font-medium">Trending:</span>
+        {TRENDING_SEARCHES.map((item, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => handleTrendingClick(item)}
+            disabled={isLoading}
+            className="px-3 py-1 rounded-full bg-white hover:bg-slate-50 text-slate-600 hover:text-[#1862F6] border border-slate-200 shadow-sm transition cursor-pointer"
+          >
+            {item.label} <span className="text-slate-400 font-normal">&middot; {item.location}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 4-Column Separated Telemetry Strip (When not compact) */}
+      {!compact && (
+        <div className="max-w-3xl mx-auto mt-12 pt-8 border-t border-slate-100">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-2">
+            <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 sm:border-r border-slate-100 text-center sm:text-left">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#1862F6] flex items-center justify-center mb-2">
+                <Radio className="w-4 h-4" />
               </div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
-      )}
-
-      {/* Error Banner */}
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-xs">
-          <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-rose-200">Execution Notice</p>
-            <p>{errorMessage}</p>
-            <p className="text-[11px] text-rose-400/80">
-              Tip: You can change the LLM endpoint or connect local Ollama in Settings.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Dossier Workspace */}
-      {currentDossier ? (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          <ResearchDossierView dossier={currentDossier} />
-        </div>
-      ) : (
-        /* Empty State / Welcome Screen */
-        <div className="p-8 sm:p-12 rounded-3xl bg-slate-900/30 border border-slate-800/80 text-center space-y-6">
-          <div className="inline-flex p-4 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-lg shadow-cyan-500/5">
-            <Sparkles className="w-8 h-8" />
-          </div>
-          <div className="max-w-xl mx-auto space-y-2">
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-tight">
-              DeepMarket Autonomous Research Engine
-            </h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Grounded in live search autocomplete (Google Suggest & DuckDuckGo) and real scraped competitor rankings.
-              Zero context bleeding. Zero fabricated numerical search volume.
-            </p>
-          </div>
-
-          {/* Preset Suggestion Pills */}
-          <div className="max-w-2xl mx-auto pt-2">
-            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 font-medium mb-3">
-              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-              <span>Select an example query to launch immediately:</span>
+              <span className="text-xs font-bold text-slate-900">Google &amp; Bing Suggest</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Real search autocomplete</span>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {SUGGESTED_PROMPTS.map((promptText, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setInputPrompt(promptText);
-                    handleStartResearch(promptText);
-                  }}
-                  disabled={isRunning}
-                  className="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 border border-slate-800 hover:border-cyan-500/40 transition-all text-left shadow-sm disabled:opacity-50"
-                >
-                  ⚡ {promptText}
-                </button>
-              ))}
+
+            <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 sm:border-r border-slate-100 text-center sm:text-left">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center mb-2">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-900">Reddit &amp; HackerNews</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Live community discussions</span>
+            </div>
+
+            <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 sm:border-r border-slate-100 text-center sm:text-left">
+              <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-2">
+                <Globe className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-900">Inspected Domains</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Live scraped headings &amp; pricing</span>
+            </div>
+
+            <div className="flex flex-col items-center sm:items-start p-3 sm:p-2 text-center sm:text-left">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                <Rocket className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-900">30-60-90 Playbooks</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">Evidence-grounded strategy</span>
             </div>
           </div>
         </div>
       )}
-
-      {/* History Drawer if multiple runs exist */}
-      {history.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0 font-medium">
-            <History className="w-3.5 h-3.5" /> Previous Runs:
-          </span>
-          {history.map((h, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentDossier(h)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${
-                currentDossier?.meta.timestamp === h.meta.timestamp
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {h.meta.query.slice(0, 32)}...
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Bottom Sticky Chat & Input Bar */}
-      <div className="sticky bottom-4 z-20">
-        <div className="p-3 sm:p-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 shadow-2xl backdrop-blur-xl">
-          <div className="flex items-end gap-2 sm:gap-3">
-            <div className="relative flex-1">
-              <textarea
-                ref={inputRef}
-                value={inputPrompt}
-                onChange={(e) => setInputPrompt(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isRunning}
-                rows={2}
-                placeholder="Describe your venture, target region, or market entry thesis (e.g. 'We want to launch an eco-resort booking & excursion desk in Maldives and Bali')..."
-                className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 resize-none disabled:opacity-60"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleStartResearch()}
-              disabled={isRunning || !inputPrompt.trim()}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 h-[52px]"
-            >
-              {isRunning ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="hidden sm:inline">Executing...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span className="hidden sm:inline">Run Swarm</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between mt-2.5 px-1 text-[11px] text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span>Targeting:</span>
-              <span className="font-mono text-cyan-400/90">{llmConfig.model}</span>
-              <span>at</span>
-              <span className="font-mono text-slate-400 truncate max-w-[200px]">{llmConfig.baseUrl}</span>
-            </div>
-            <button
-              onClick={onOpenSettings}
-              className="hover:text-cyan-400 underline transition-colors"
-            >
-              Configure Endpoint / API
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }

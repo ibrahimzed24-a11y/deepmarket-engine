@@ -105,13 +105,6 @@ ${JSON.stringify(combinedRankings.slice(0, 8), null, 2)}`;
             critical_weaknesses: parsed.critical_weaknesses || [],
             unaddressed_customer_pain: parsed.unaddressed_customer_pain || [],
             pricing_teardown: parsed.pricing_teardown || [],
-            top_competitors: parsed.competitors.map((c) => ({
-              name: c.name,
-              market_share_tier: `${c.opportunity_tier || 'High'} Opportunity Tier`,
-              strengths: c.strengths || [],
-              weaknesses: c.weaknesses || [],
-              pricing_model: c.pricing_model || 'Standard SaaS',
-            })),
           };
         }
       }
@@ -172,13 +165,6 @@ ${JSON.stringify(combinedRankings.slice(0, 8), null, 2)}`;
           notes: 'Differentiate with immediate automated onboarding within 5 minutes.',
         },
       ],
-      top_competitors: fallbackCompetitors.map((c) => ({
-        name: c.name,
-        market_share_tier: `${c.opportunity_tier} Opportunity Target`,
-        strengths: c.strengths,
-        weaknesses: c.weaknesses,
-        pricing_model: c.pricing_model || 'Standard SaaS',
-      })),
     };
   }
 }

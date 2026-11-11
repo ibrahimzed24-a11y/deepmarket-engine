@@ -112,7 +112,6 @@ ${JSON.stringify(cleanQueries.slice(0, 15), null, 2)}`;
               informational: 20,
               navigational: 5,
             },
-            seed_keywords: seedQueries,
           };
         }
       }
@@ -176,7 +175,6 @@ ${JSON.stringify(cleanQueries.slice(0, 15), null, 2)}`;
         informational: 20,
         navigational: 5,
       },
-      seed_keywords: seedQueries,
     };
   }
 }
