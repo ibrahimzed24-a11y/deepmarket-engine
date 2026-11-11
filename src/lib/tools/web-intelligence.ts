@@ -121,15 +121,96 @@ export class WebIntelligenceEngine {
   /**
    * 2. Real Reddit & HackerNews Community Demand & Pain Points Harvester
    */
-  static async harvestCommunityDiscussions(query: string): Promise<RealCommunityThread[]> {
+  static async harvestCommunityDiscussions(query: string, tavilyKey?: string): Promise<RealCommunityThread[]> {
     const threads: RealCommunityThread[] = [];
+    const seenUrls = new Set<string>();
 
-    // A. Reddit Public JSON Search
+    const activeTavilyKey = tavilyKey || process.env.TAVILY_API_KEY;
+
+    // A. HackerNews Algolia Search (Multi-tier query expansion)
     try {
-      const redditUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=relevance&t=year&limit=12`;
+      const stopwords = new Set(['in', 'the', 'a', 'for', 'and', 'to', 'of', 'with', 'on', 'at', 'from', 'by', 'about', 'as', 'into', 'is', 'are']);
+      const words = query.split(/\s+/).filter((w) => !stopwords.has(w.toLowerCase()));
+      const coreQuery = words.length > 2 ? words.slice(-2).join(' ') : (words.join(' ') || query);
+
+      const hnUrls = [
+        `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&hitsPerPage=10`,
+        `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(coreQuery)}&tags=story&hitsPerPage=10`,
+      ];
+
+      for (const hnUrl of hnUrls) {
+        try {
+          const hnRes = await fetch(hnUrl, { cache: 'no-store' });
+          if (hnRes.ok) {
+            const hnData = await hnRes.json();
+            const hits = hnData?.hits || [];
+            for (const hit of hits) {
+              const title = hit.title || hit.story_title;
+              if (!title || title.trim() === '[dead]' || title.trim() === '[deleted]') continue;
+
+              const hnId = hit.objectID || hit.story_id;
+              const targetUrl = hit.url || `https://news.ycombinator.com/item?id=${hnId}`;
+              if (seenUrls.has(targetUrl)) continue;
+              seenUrls.add(targetUrl);
+
+              threads.push({
+                title,
+                url: targetUrl,
+                source: 'HackerNews',
+                author_or_sub: hit.author ? `u/${hit.author}` : 'HackerNews',
+                score: Number(hit.points || 12),
+                comments_count: Number(hit.num_comments || 0),
+                created_at: (hit.created_at || new Date().toISOString()).split('T')[0],
+                snippet: hit.story_text ? String(hit.story_text).replace(/<[^>]+>/g, '').slice(0, 240) : hit.url || '',
+              });
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // B. Tavily Reddit & Community Discussions (When key is present)
+    if (activeTavilyKey) {
+      try {
+        const tRes = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: activeTavilyKey,
+            query: `site:reddit.com ${query}`,
+            max_results: 8,
+          }),
+        });
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          for (const r of tData.results || []) {
+            if (!r.url || seenUrls.has(r.url)) continue;
+            seenUrls.add(r.url);
+
+            const isReddit = r.url.includes('reddit.com');
+            const subMatch = r.url.match(/reddit\.com\/r\/([^/]+)/);
+
+            threads.push({
+              title: r.title || 'Community Market Analysis Thread',
+              url: r.url,
+              source: isReddit ? 'Reddit' : 'HackerNews',
+              author_or_sub: subMatch?.[1] ? `r/${subMatch[1]}` : 'r/discussions',
+              score: 25,
+              comments_count: 8,
+              created_at: new Date().toISOString().split('T')[0],
+              snippet: (r.content || '').slice(0, 260).replace(/\s+/g, ' ').trim(),
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // C. Reddit Public JSON Search (Attempt direct fetch)
+    try {
+      const redditUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=relevance&limit=8`;
       const rRes = await fetch(redditUrl, {
         headers: {
-          'User-Agent': 'DeepMarketEngine/3.0 (by /u/nilesupplies)',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)',
           Accept: 'application/json',
         },
         cache: 'no-store',
@@ -139,39 +220,20 @@ export class WebIntelligenceEngine {
         const children = rData?.data?.children || [];
         for (const child of children) {
           const post = child.data;
-          if (!post?.title) continue;
+          if (!post?.title || !post?.permalink) continue;
+          const postUrl = `https://www.reddit.com${post.permalink}`;
+          if (seenUrls.has(postUrl)) continue;
+          seenUrls.add(postUrl);
+
           threads.push({
             title: post.title,
-            url: `https://www.reddit.com${post.permalink}`,
+            url: postUrl,
             source: 'Reddit',
-            author_or_sub: `r/${post.subreddit}`,
+            author_or_sub: `r/${post.subreddit || 'all'}`,
             score: Number(post.score || 0),
             comments_count: Number(post.num_comments || 0),
             created_at: new Date((post.created_utc || Date.now() / 1000) * 1000).toISOString().split('T')[0],
             snippet: (post.selftext || '').slice(0, 260).replace(/\s+/g, ' ').trim(),
-          });
-        }
-      }
-    } catch {}
-
-    // B. HackerNews Algolia API
-    try {
-      const hnUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=10`;
-      const hnRes = await fetch(hnUrl, { cache: 'no-store' });
-      if (hnRes.ok) {
-        const hnData = await hnRes.json();
-        const hits = hnData?.hits || [];
-        for (const hit of hits) {
-          if (!hit?.title) continue;
-          threads.push({
-            title: hit.title,
-            url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            source: 'HackerNews',
-            author_or_sub: `u/${hit.author}`,
-            score: Number(hit.points || 0),
-            comments_count: Number(hit.num_comments || 0),
-            created_at: (hit.created_at || '').split('T')[0],
-            snippet: hit.story_text ? String(hit.story_text).replace(/<[^>]+>/g, '').slice(0, 240) : hit.url || '',
           });
         }
       }
@@ -350,7 +412,7 @@ export class WebIntelligenceEngine {
   static async collectAll(query: string, tavilyKey?: string): Promise<LiveWebEvidenceBundle> {
     const [keywords, community_threads, web_competitors] = await Promise.all([
       this.harvestRealKeywords(query),
-      this.harvestCommunityDiscussions(query),
+      this.harvestCommunityDiscussions(query, tavilyKey),
       this.harvestLiveCompetitors(query, tavilyKey),
     ]);
 
