@@ -88,7 +88,8 @@ export interface LLMCallResult {
 export async function callOpenAICompatible(
   messages: ChatMessage[],
   configOverrides?: Partial<LLMConfig>,
-  timeoutMs: number = 25000
+  timeoutMs: number = 25000,
+  temperature: number = 0.2
 ): Promise<LLMCallResult> {
   const config: LLMConfig = {
     baseUrl: configOverrides?.baseUrl?.trim() || DEFAULT_LLM_CONFIG.baseUrl,
@@ -96,7 +97,6 @@ export async function callOpenAICompatible(
     model: configOverrides?.model?.trim() || DEFAULT_LLM_CONFIG.model,
   };
 
-  // Normalize baseUrl (strip trailing slash)
   const normalizedBase = config.baseUrl.replace(/\/+$/, '');
   const endpoint = `${normalizedBase}/chat/completions`;
 
@@ -113,7 +113,7 @@ export async function callOpenAICompatible(
       body: JSON.stringify({
         model: config.model,
         messages,
-        temperature: 0.2,
+        temperature,
         response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
@@ -148,4 +148,30 @@ export async function callOpenAICompatible(
       error: errorMsg,
     };
   }
+}
+
+/**
+ * Direct callLLM helper function.
+ */
+export async function callLLM(options: {
+  system?: string;
+  prompt: string;
+  temperature?: number;
+  config?: Partial<LLMConfig>;
+  timeoutMs?: number;
+}): Promise<string> {
+  const messages: ChatMessage[] = [];
+  if (options.system) {
+    messages.push({ role: 'system', content: options.system });
+  }
+  messages.push({ role: 'user', content: options.prompt });
+
+  const result = await callOpenAICompatible(
+    messages,
+    options.config,
+    options.timeoutMs || 25000,
+    options.temperature !== undefined ? options.temperature : 0.2
+  );
+
+  return result.content;
 }
