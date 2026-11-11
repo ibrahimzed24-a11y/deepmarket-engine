@@ -378,27 +378,39 @@ export class WebIntelligenceEngine {
     // High-Reliability Serverless Fallback: GitHub Open-Source Ecosystem & Live Demos
     if (discoveredUrls.size < 4) {
       try {
-        const ghUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&per_page=6`;
-        const ghRes = await fetch(ghUrl, {
-          headers: { 'User-Agent': 'DeepMarketBot/3.0' },
-          cache: 'no-store',
-        });
-        if (ghRes.ok) {
-          const ghData = await ghRes.json();
-          for (const item of ghData?.items || []) {
-            const targetUrl = item.homepage && item.homepage.startsWith('http') ? item.homepage : item.html_url;
-            try {
-              const parsed = new URL(targetUrl);
-              const domain = parsed.hostname.replace(/^www\./, '');
-              if (!discoveredUrls.has(domain)) {
-                discoveredUrls.set(domain, {
-                  url: targetUrl,
-                  title: item.name || domain,
-                  snippet: item.description || '',
-                });
+        const stopwords = new Set(['in', 'the', 'a', 'for', 'and', 'to', 'of', 'with', 'on', 'at', 'from', 'by', 'about', 'b2b', 'best']);
+        const words = query.split(/\s+/).filter((w) => !stopwords.has(w.toLowerCase()));
+        const ghQueries = [query];
+        if (words.length > 2) {
+          ghQueries.push(words.slice(-2).join(' '));
+        }
+
+        for (const gq of ghQueries) {
+          if (discoveredUrls.size >= 4) break;
+          try {
+            const ghUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(gq)}&sort=stars&per_page=6`;
+            const ghRes = await fetch(ghUrl, {
+              headers: { 'User-Agent': 'DeepMarketBot/3.0' },
+              cache: 'no-store',
+            });
+            if (ghRes.ok) {
+              const ghData = await ghRes.json();
+              for (const item of ghData?.items || []) {
+                const targetUrl = item.homepage && item.homepage.startsWith('http') ? item.homepage : item.html_url;
+                try {
+                  const parsed = new URL(targetUrl);
+                  const domain = parsed.hostname.replace(/^www\./, '');
+                  if (!discoveredUrls.has(domain)) {
+                    discoveredUrls.set(domain, {
+                      url: targetUrl,
+                      title: item.name || domain,
+                      snippet: item.description || '',
+                    });
+                  }
+                } catch {}
               }
-            } catch {}
-          }
+            }
+          } catch {}
         }
       } catch {}
     }
